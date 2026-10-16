@@ -1,9 +1,10 @@
-// 音量の見張り（watcher/volume-watcher.sh）を Fire TV の中で動かすアプリ。
-// 開くと見張りが動いているかを確かめ、止まっていれば動かす。Fire TV を再起動したら 1 回開く。
-// 初回だけ、テレビに出る 4 桁の数字でリモコン用 API とペアリングする。
+// App that runs the volume watcher (watcher/volume-watcher.sh) inside the Fire TV.
+// On open it checks the watcher and starts it if needed. Open it once after the Fire TV restarts.
+// The first time, it pairs with the remote-control API using a 4-digit PIN shown on the TV.
 
 import {AsyncStorage} from '@amazon-devices/react-native-kepler';
 import {adbshell} from '@redimpulz/adbshell';
+import {t} from './i18n';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   AppState,
@@ -16,20 +17,11 @@ import {
 
 const TOKEN_KEY = 'volumeremote.clientToken';
 const PIN_LENGTH = 4;
-const KEYS = [
-  '1',
-  '2',
-  '3',
-  '4',
-  '5',
-  '6',
-  '7',
-  '8',
-  '9',
-  '消す',
-  '0',
-  'やり直す',
-];
+const CLEAR = 'clear';
+const NEW_PIN = 'new-pin';
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', CLEAR, '0', NEW_PIN];
+const keyLabel = (k: string) =>
+  k === CLEAR ? t.keyClear : k === NEW_PIN ? t.keyRetry : k;
 
 type State =
   | {kind: 'busy'; message: string}
@@ -42,36 +34,37 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export const App = () => {
   const [state, setState] = useState<State>({
     kind: 'busy',
-    message: '確認しています…',
+    message: t.checking,
   });
   const [pin, setPin] = useState('');
-  // テレビに数字を出すとアプリは一瞬裏に回り、また手前に戻る。そのたびに数字を出し直さないよう、今の状態を覚えておく
+  // Showing the PIN briefly sends the app to the background and back.
+  // Remember the state so the PIN is not requested again each time.
   const stateRef = useRef(state);
   stateRef.current = state;
   const {height} = useWindowDimensions();
-  // 画面の高さを 1080 とみなした大きさ
+  // Size in units where the screen height is 1080
   const u = (px: number) => (px * height) / 1080;
 
   const startPairing = useCallback(async () => {
     setPin('');
-    setState({kind: 'pairing', message: 'テレビに 4 桁の数字を出しています…'});
+    setState({kind: 'pairing', message: t.showingPin});
     try {
       await adbshell.requestPin();
       setState({
         kind: 'pairing',
-        message: 'テレビに出た 4 桁の数字を入力してください',
+        message: t.enterPin,
       });
     } catch (e) {
       setState({
         kind: 'error',
-        message: `数字を出せませんでした: ${errorText(e)}`,
+        message: `${t.pinFailed}: ${errorText(e)}`,
       });
     }
   }, []);
 
   const ensureRunning = useCallback(
     async (force = false) => {
-      setState({kind: 'busy', message: '確認しています…'});
+      setState({kind: 'busy', message: t.checking});
       try {
         const token = await AsyncStorage.getItem(TOKEN_KEY);
         if (!token) {
@@ -79,7 +72,7 @@ export const App = () => {
           return;
         }
         if (force || !(await adbshell.isWatcherRunning())) {
-          setState({kind: 'busy', message: '見張りを動かしています…'});
+          setState({kind: 'busy', message: t.starting});
           await adbshell.startWatcher(token);
         }
         setState({kind: 'running'});
@@ -90,7 +83,7 @@ export const App = () => {
     [startPairing],
   );
 
-  // 開いたときと、ほかのアプリから戻ってきたときに確かめる
+  // Check on open and when returning from another app
   useEffect(() => {
     ensureRunning();
     const sub = AppState.addEventListener('change', (s) => {
@@ -103,7 +96,7 @@ export const App = () => {
   }, [ensureRunning]);
 
   const verify = async (value: string) => {
-    setState({kind: 'busy', message: '確認しています…'});
+    setState({kind: 'busy', message: t.checking});
     try {
       const token = await adbshell.verifyPin(value);
       await AsyncStorage.setItem(TOKEN_KEY, token);
@@ -112,15 +105,17 @@ export const App = () => {
       setPin('');
       setState({
         kind: 'pairing',
-        message: `${errorText(e)}。もう一度入力してください`,
+        message: errorText(e).startsWith('wrong-pin')
+          ? t.wrongPin
+          : errorText(e),
       });
     }
   };
 
   const press = (key: string) => {
-    if (key === 'やり直す') {
+    if (key === NEW_PIN) {
       startPairing();
-    } else if (key === '消す') {
+    } else if (key === CLEAR) {
       setPin((p) => p.slice(0, -1));
     } else if (pin.length < PIN_LENGTH) {
       const next = pin + key;
@@ -131,9 +126,14 @@ export const App = () => {
     }
   };
 
-  const button = (label: string, onPress: () => void, focus = false) => (
+  const button = (
+    id: string,
+    label: string,
+    onPress: () => void,
+    focus = false,
+  ) => (
     <FocusButton
-      key={label}
+      key={id}
       label={label}
       onPress={onPress}
       focus={focus}
@@ -144,7 +144,7 @@ export const App = () => {
 
   return (
     <View style={[styles.container, {padding: u(60), gap: u(32)}]}>
-      <Text style={[styles.title, {fontSize: u(48)}]}>テレビ音量リモコン</Text>
+      <Text style={[styles.title, {fontSize: u(48)}]}>{t.title}</Text>
 
       {state.kind === 'busy' && (
         <Text style={[styles.message, {fontSize: u(30)}]}>{state.message}</Text>
@@ -152,14 +152,10 @@ export const App = () => {
 
       {state.kind === 'running' && (
         <>
-          <Text style={[styles.message, {fontSize: u(30)}]}>
-            見張りが動いています。{'\n'}
-            リモコンの音量ボタンでテレビの音量が変わります。{'\n'}
-            ホームボタンで戻って大丈夫です。
-          </Text>
+          <Text style={[styles.message, {fontSize: u(30)}]}>{t.running}</Text>
           <View style={[styles.row, {gap: u(24)}]}>
-            {button('動かし直す', () => ensureRunning(true), true)}
-            {button('ペアリングし直す', async () => {
+            {button('restart', t.restart, () => ensureRunning(true), true)}
+            {button('repair', t.repair, async () => {
               await AsyncStorage.removeItem(TOKEN_KEY);
               startPairing();
             })}
@@ -170,11 +166,8 @@ export const App = () => {
       {state.kind === 'error' && (
         <>
           <Text style={[styles.error, {fontSize: u(28)}]}>{state.message}</Text>
-          <Text style={[styles.message, {fontSize: u(24)}]}>
-            開発者モードが有効で、接続方法が TCP/IP
-            になっているか確かめてください。
-          </Text>
-          {button('もう一度試す', () => ensureRunning(), true)}
+          <Text style={[styles.message, {fontSize: u(24)}]}>{t.errorHint}</Text>
+          {button('retry', t.retry, () => ensureRunning(), true)}
         </>
       )}
 
@@ -202,7 +195,7 @@ export const App = () => {
               styles.keypad,
               {width: u(200) * 3 + u(16) * 2, gap: u(16)},
             ]}>
-            {KEYS.map((k) => button(k, () => press(k), k === '1'))}
+            {KEYS.map((k) => button(k, keyLabel(k), () => press(k), k === '1'))}
           </View>
         </>
       )}

@@ -1,5 +1,5 @@
 {
-  "name": "@amazon-devices/volumeremote",
+  "name": "@redimpulz/firetv-cec-volume-app",
   "version": "0.0.1",
   "private": true,
   "files": [
@@ -57,5 +57,7 @@
     "targets": [
       "tv"
     ]
-  }
+  },
+  "license": "MIT",
+  "description": "Fire TV (Vega OS) app that starts the CEC volume watcher"
 }

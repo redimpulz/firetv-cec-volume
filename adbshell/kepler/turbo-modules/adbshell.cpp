@@ -1,7 +1,8 @@
-// Fire TV の開発者モードのデバッグ用接続（adb 互換のプロトコル、127.0.0.1:5555）で、音量の見張りを動かす。
-// 実機（Vega OS 2.0）ではこの接続に認証が無く、CNXN を送るとそのまま CNXN が返る。
-// 実行するコマンドはここで組み立てる決まったものだけにし、JS から任意のコマンドは渡せないようにしている。
-// プロトコル: https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/protocol.txt
+// Runs the volume watcher through the Fire TV developer-mode debug connection
+// (adb-compatible protocol, 127.0.0.1:5555).
+// On a real device (Vega OS 2.0) the connection has no authentication: CNXN is answered with CNXN.
+// Only the fixed commands built in this file are run; JS cannot pass arbitrary commands.
+// Protocol: https://android.googlesource.com/platform/packages/modules/adb/+/refs/heads/main/protocol.txt
 
 #include "adbshell.h"
 #include "generated/watcherScript.h"
@@ -43,7 +44,7 @@ struct Message {
   std::string data;
 };
 
-// 失敗したら閉じるためのソケットの持ち主
+// Owns the socket so it is closed on failure
 class Socket {
  public:
   explicit Socket(int fd) : fd_(fd) {}
@@ -60,7 +61,7 @@ void writeAll(int fd, const void* buf, size_t len) {
   auto* p = static_cast<const char*>(buf);
   while (len > 0) {
     ssize_t n = send(fd, p, len, MSG_NOSIGNAL);
-    if (n <= 0) throw std::runtime_error("送信に失敗しました");
+    if (n <= 0) throw std::runtime_error("send failed");
     p += n;
     len -= static_cast<size_t>(n);
   }
@@ -70,8 +71,8 @@ void readAll(int fd, void* buf, size_t len) {
   auto* p = static_cast<char*>(buf);
   while (len > 0) {
     ssize_t n = recv(fd, p, len, 0);
-    if (n == 0) throw std::runtime_error("接続が切れました");
-    if (n < 0) throw std::runtime_error("受信が時間切れになりました");
+    if (n == 0) throw std::runtime_error("connection closed");
+    if (n < 0) throw std::runtime_error("receive timed out");
     p += n;
     len -= static_cast<size_t>(n);
   }
@@ -88,7 +89,7 @@ void sendMessage(int fd, uint32_t command, uint32_t arg0, uint32_t arg1, const s
 Message readMessage(int fd) {
   uint32_t header[6];
   readAll(fd, header, sizeof(header));
-  if (header[3] > MAX_PAYLOAD) throw std::runtime_error("応答が大きすぎます");
+  if (header[3] > MAX_PAYLOAD) throw std::runtime_error("response too large");
   Message m{header[0], header[1], header[2], std::string(header[3], '\0')};
   if (header[3] > 0) readAll(fd, m.data.data(), header[3]);
   return m;
@@ -100,12 +101,12 @@ int connectTo(const std::string& host, int port, int timeoutMs) {
   hints.ai_socktype = SOCK_STREAM;
   addrinfo* res = nullptr;
   if (getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints, &res) != 0 || !res) {
-    throw std::runtime_error("接続先が分かりません: " + host);
+    throw std::runtime_error("cannot resolve host: " + host);
   }
   int fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
   if (fd < 0) {
     freeaddrinfo(res);
-    throw std::runtime_error("ソケットを作れません");
+    throw std::runtime_error("cannot create socket");
   }
   timeval tv{timeoutMs / 1000, (timeoutMs % 1000) * 1000};
   setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
@@ -114,7 +115,7 @@ int connectTo(const std::string& host, int port, int timeoutMs) {
   freeaddrinfo(res);
   if (rc != 0) {
     close(fd);
-    throw std::runtime_error(std::string("繋がりません: ") + std::strerror(errno));
+    throw std::runtime_error(std::string("cannot connect: ") + std::strerror(errno));
   }
   return fd;
 }
@@ -125,12 +126,12 @@ std::string runShell(const std::string& host, int port, const std::string& comma
 
   sendMessage(fd, A_CNXN, A_VERSION, MAX_PAYLOAD, std::string("host::\0", 7));
   Message m = readMessage(fd);
-  if (m.command == A_AUTH) throw std::runtime_error("デバッグ用の接続に認証が求められました");
-  if (m.command != A_CNXN) throw std::runtime_error("デバッグ用の接続に応答がありません");
+  if (m.command == A_AUTH) throw std::runtime_error("debug connection requires authentication");
+  if (m.command != A_CNXN) throw std::runtime_error("no response from debug connection");
 
-  // shell_v2 で開く。ほかの方式（shell: や exec:）では、接続を閉じたときに裏で動かしたプログラムも止められる（実機で確認）
+  // Open with shell_v2. With shell: or exec:, background processes are killed when the connection closes.
   sendMessage(fd, A_OPEN, LOCAL_ID, 0, "shell,v2,raw:" + command + std::string("\0", 1));
-  // shell_v2 の出力は [種類 1 バイト][長さ 4 バイト][中身] の並び。種類 1 が標準出力
+  // shell_v2 output is a sequence of [id: 1 byte][length: 4 bytes][data]. id 1 is stdout.
   std::string stream;
   std::string output;
   uint32_t remoteId = 0;
@@ -161,7 +162,8 @@ std::string shell(const std::string& command) {
   return runShell(HOST, PORT, command, TIMEOUT_MS);
 }
 
-// リモコン用 API の手前で毎回やること: 端末自身の LAN の IP を調べ（127.0.0.1:8080 には繋がらない）、API を起こす
+// Run before every remote-control API call: find the device's own LAN IP (127.0.0.1:8080 is not
+// reachable) and wake the API.
 const std::string API_PREAMBLE =
     "IP=$(curl -s -m 3 -D - -o /dev/null http://127.0.0.1:60000/dd.xml"
     " | sed -n 's#^Application-URL: http://\\([^:/]*\\).*#\\1#p' | tr -d '\\r'); "
@@ -176,9 +178,9 @@ bool isWatcherRunningImpl() {
 
 void startWatcherImpl(const std::string& token) {
   if (!std::regex_match(token, std::regex("[A-Za-z0-9_-]{1,128}"))) {
-    throw std::runtime_error("トークンの形式が正しくありません");
+    throw std::runtime_error("invalid token");
   }
-  // 1 回のコマンドに載せられる長さに限りがあるので、分けて書き足す
+  // A single command has a length limit, so append the script in chunks.
   const std::string b64 = WATCHER_SCRIPT_BASE64;
   shell("rm -f /tmp/volume-watcher.b64");
   constexpr size_t CHUNK = 3000;
@@ -190,36 +192,37 @@ void startWatcherImpl(const std::string& token) {
       " && printf '%s' '" + token + "' > /tmp/volume-watcher.token"
       " && sh /tmp/volume-watcher.sh start");
   if (out.find("started") == std::string::npos) {
-    throw std::runtime_error("見張りを起動できませんでした: " + out);
+    throw std::runtime_error("failed to start the watcher: " + out);
   }
 }
 
 void requestPinImpl() {
   std::string out = shell(API_PREAMBLE + "curl -sk -m 5 -o /dev/null -w '%{http_code}' -X POST " + API_HEADERS +
-                          "-d '{\"friendlyName\":\"テレビ音量リモコン\"}' https://$IP:8080/v1/FireTV/pin/display");
+                          "-d '{\"friendlyName\":\"Fire TV CEC Volume\"}' https://$IP:8080/v1/FireTV/pin/display");
   if (out.find("200") == std::string::npos) {
-    throw std::runtime_error("テレビに数字を出せませんでした（HTTP " + out + "）");
+    throw std::runtime_error("cannot show the PIN (HTTP " + out + ")");
   }
 }
 
 std::string verifyPinImpl(const std::string& pin) {
   if (!std::regex_match(pin, std::regex("[0-9]{4}"))) {
-    throw std::runtime_error("数字 4 桁を入力してください");
+    throw std::runtime_error("wrong-pin: the PIN must be 4 digits");
   }
   std::string out = shell(API_PREAMBLE + "curl -sk -m 5 -X POST " + API_HEADERS + "-d '{\"pin\":\"" + pin +
                           "\"}' https://$IP:8080/v1/FireTV/pin/verify");
-  // 応答は {"description":"<トークン>"}。数字が違うと description が無いか OK になる
+  // The response is {"description":"<token>"}. With a wrong PIN, description is missing or "OK".
   std::smatch m;
   if (!std::regex_search(out, m, std::regex("\"description\":\"([A-Za-z0-9_-]+)\"")) || m[1] == "OK") {
-    throw std::runtime_error("数字が違うようです");
+    throw std::runtime_error("wrong-pin: the PIN did not match");
   }
-  // 数字を確定すると、Fire TV の数字の画面が真っ黒のまま手前に残る。少し待ってアプリを手前に呼び戻す
+  // After pairing, the Fire TV's PIN screen stays in front as a black screen.
+  // Bring the app back to the front shortly afterwards.
   shell("setsid nohup sh -c 'sleep 1.5; vlcm launch-app pkg://com.redimpulz.volumeremote.main'"
         " > /dev/null 2>&1 < /dev/null &");
   return m[1];
 }
 
-// 通信は待ち時間があるので、JS のスレッドを止めないよう別スレッドで行う
+// Network I/O blocks, so run it on a separate thread to keep the JS thread free.
 template <typename F>
 Promise async(F&& work) {
   return Promise([work = std::forward<F>(work)](std::shared_ptr<Promise> promise) mutable {

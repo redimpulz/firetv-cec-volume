@@ -1,7 +1,7 @@
 const path = require('path');
 const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
 
-// ../adbshell はシンボリックリンクで入れているので、Metro に場所を教える
+// ../adbshell is installed as a symlink, so tell Metro where it lives.
 const adbshell = path.resolve(__dirname, '../adbshell');
 
 /**

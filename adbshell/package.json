@@ -43,5 +43,7 @@
     "targets": [
       "tv"
     ]
-  }
+  },
+  "license": "MIT",
+  "description": "Runs the CEC volume watcher through the Fire TV developer-mode debug connection"
 }

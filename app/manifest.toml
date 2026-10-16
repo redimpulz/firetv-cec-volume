@@ -1,7 +1,7 @@
 schema-version = 1
 
 [package]
-title = "テレビ音量リモコン"
+title = "CEC Volume"
 version = "0.1.0"
 id = "com.redimpulz.volumeremote"
 

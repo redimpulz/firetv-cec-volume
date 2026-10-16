@@ -1,54 +1,62 @@
-# テレビ音量リモコン（Fire TV / Vega OS）
+# firetv-cec-volume
 
-Fire TV のリモコンの音量ボタンで、HDMI-CEC 経由でテレビの音量を変える。リモコンの IR プリセットに無いテレビ向け。YouTube などを見ている最中でも効く。
+[日本語](README.ja.md)
 
-Fire TV Stick 4K Select（Vega OS）で動作を確認した。開発者モードを使う個人用の仕組みで、ストアには出せない。
+Control your TV's volume over HDMI-CEC with the Fire TV remote's volume buttons — even while watching YouTube or other apps. Useful when your TV is missing from the remote's IR presets.
 
-## 仕組み
+Tested on Fire TV Stick 4K Select (Vega OS). This is a personal-use tool that relies on developer mode; it cannot be published on the Amazon Appstore.
 
-- Fire TV は、公式のスマホ用 Fire TV アプリ向けのリモコン API（`https://<Fire TV の IP>:8080`）を持っている。この API に音量キーを送ると、Fire TV が HDMI-CEC でテレビに転送する
-- 見張り（[watcher/volume-watcher.sh](watcher/volume-watcher.sh)）が Fire TV の開発者用シェルで常駐し、ログに記録されるリモコンの音量ボタンを見て、この API に送る
-- アプリ（[app/](app/)）は、開発者モードのデバッグ用接続（127.0.0.1:5555）を使って見張りを置き、動かす。接続には C++ の部品（[adbshell/](adbshell/)）を使う。実行できるのは見張りの起動・確認とペアリングだけ
+> [!WARNING]
+> This is an unofficial project and is not affiliated with or endorsed by Amazon. It relies on undocumented Fire TV behavior that may change or stop working with any software update. Use it at your own risk. The software is provided "as is", without warranty of any kind, and the authors accept no liability for any damage or loss arising from its use (see [LICENSE](LICENSE)).
 
-API の仕様は非公開で、[hms-firetv](https://github.com/hms-homelab/hms-firetv) の解析結果と実機での確認に従っている。
+## How it works
 
-## 使い方
+- The Fire TV exposes a remote-control API (`https://<Fire TV IP>:8080`) used by the official Fire TV mobile app. Volume keys sent to this API are forwarded to the TV over HDMI-CEC.
+- A watcher ([watcher/volume-watcher.sh](watcher/volume-watcher.sh)) runs in the Fire TV's developer shell. It sees remote volume button presses in the system log and sends them to the API.
+- The app ([app/](app/)) installs and starts the watcher through the developer-mode debug connection (127.0.0.1:5555), using a small C++ module ([adbshell/](adbshell/)). The module can only start and check the watcher and pair with the API.
 
-### 最初の 1 回
+The API is undocumented. This project follows the analysis in [hms-firetv](https://github.com/hms-homelab/hms-firetv) and testing on a real device.
 
-PC に Vega SDK（`vega` コマンド。`~/vega/env` を読み込む）を入れておく。
+## Setup
 
-1. Fire TV の 設定 → マイ Fire TV → バージョン情報 で、端末名を 7 回押す。開発者オプション → Developer Mode で 6 桁のコードを出す
-2. PC で `vega devmode login` → `vega devmode enable-device --code <6 桁>`（Fire TV が再起動する）
-3. 開発者オプション → Connection Mode を TCP/IP にする。バージョン情報 → ネットワーク で IP アドレスを確かめ、`vega exec vda connect <IP>:5555` で繋ぐ
-4. Fire TV の 設定 → ディスプレイとサウンド → HDMI CEC 機器コントロール を ON にする
-5. アプリを入れる（下の「ビルド」）
-6. アプリを開くと、テレビに 4 桁の数字が出る。アプリのテンキーで入力する（ペアリング。最初の 1 回だけ）
+You need the Vega SDK (the `vega` command, loaded with `~/vega/env`) on your PC.
 
-WSL で `vega devmode login` が「org.freedesktop.secrets」のエラーで落ちるときは、`sudo apt install -y gnome-keyring libsecret-tools` のあと `echo -n "" | gnome-keyring-daemon --unlock --replace --daemonize --components=secrets` を実行してからやり直す。
+1. On the Fire TV, open Settings → My Fire TV → About and select the device name 7 times. Then open Developer Options → Developer Mode to show a 6-digit code.
+2. On the PC, run `vega devmode login`, then `vega devmode enable-device --code <6-digit code>`. The Fire TV restarts.
+3. Set Developer Options → Connection Mode to TCP/IP. Find the IP address under About → Network, and connect with `vega exec vda connect <IP>:5555`.
+4. Turn on Settings → Display & Sounds → HDMI CEC Device Control.
+5. Build and install the app (see [Build](#build)).
+6. Open the app. A 4-digit PIN appears on the TV; enter it with the app's keypad. You only pair once.
 
-### Fire TV を再起動したら
+## Usage
 
-アプリを 1 回開く。「見張りが動いています」と出たら、ホームボタンで戻ってよい。
+After the Fire TV restarts, open the app once. When it says the watcher is running, you can press Home.
 
-Fire TV の電源をテレビの USB 端子から取っていると、テレビを消すたびに再起動する。付属の AC アダプタでコンセントから取ると、再起動は停電やソフト更新のときだけになる。
+If the Fire TV is powered from the TV's USB port, it restarts every time the TV turns off. Powering it from the wall with the included adapter avoids this.
 
-## ビルド
+## Build
 
 ```bash
 . ~/vega/env
-(cd adbshell && npm install && npm run build)   # 見張りを書き換えたら、ここからやり直す
-cd app && npm install && npm run build:app      # build/armv7-release/volumeremote_armv7.vpkg が Fire TV Stick 用
+(cd adbshell && npm install && npm run build)   # rebuild this after changing the watcher
+cd app && npm install && npm run build:app      # build/armv7-release/volumeremote_armv7.vpkg is for Fire TV Stick
 vega device install-app --packagePath build/armv7-release/volumeremote_armv7.vpkg
 vega device launch-app --appName com.redimpulz.volumeremote.main
 ```
 
-見張りは `adbshell` のビルドで C++ のヘッダに埋め込まれる（`npm run embed-watcher`）。
+The watcher is embedded into a C++ header when `adbshell` is built.
 
-PC から直接動かすこともできる: `FIRETV_IP=<IP> ./watcher/start-watcher.sh`（初回はターミナルで 4 桁の数字を入力する）。
+You can also start the watcher from a PC without the app: `FIRETV_IP=<IP> ./watcher/start-watcher.sh` (the first run asks for the PIN in the terminal).
 
-## 注意
+## Security
 
-開発者モードで接続方法が TCP/IP のあいだ、同じ LAN の機器なら誰でも認証なしで Fire TV のシェルに入れる。共用のネットワークでは、Fire TV をゲスト用ネットワークなどに分ける。
+While developer mode is on with Connection Mode set to TCP/IP, any device on the same LAN can open a shell on the Fire TV without authentication. On shared networks, put the Fire TV on a separate network such as a guest network, or turn developer mode off when you don't need it.
 
-送った記録は Fire TV の `/tmp/volume-watcher.log` に残る。
+## Troubleshooting
+
+- `vega devmode login` fails with "org.freedesktop.secrets" on WSL: run `sudo apt install -y gnome-keyring libsecret-tools`, then `echo -n "" | gnome-keyring-daemon --unlock --replace --daemonize --components=secrets`, and try again.
+- The watcher logs each volume command it sends to `/tmp/volume-watcher.log` on the Fire TV.
+
+## License
+
+[MIT](LICENSE)

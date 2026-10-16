@@ -2,8 +2,18 @@ import {adbshell} from '../src';
 
 jest.mock('../src/turbo-modules/adbshell');
 
-describe('Template Turbomodule library tests', () => {
-  it('Sample Test Case', () => {
-    expect(adbshell.getMajorVersion()).toBe(1);
+describe('adbshell', () => {
+  it('exposes only the fixed watcher operations', () => {
+    expect(Object.keys(adbshell).sort()).toEqual(
+      [
+        'getMajorVersion',
+        'getMinorVersion',
+        'getPatchVersion',
+        'isWatcherRunning',
+        'requestPin',
+        'startWatcher',
+        'verifyPin',
+      ].sort(),
+    );
   });
 });

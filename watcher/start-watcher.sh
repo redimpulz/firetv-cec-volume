@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# PC から Fire TV に見張り（volume-watcher.sh）を入れて動かす。Fire TV を再起動したら、もう一度実行する。
+# Install and start the watcher (volume-watcher.sh) on the Fire TV from a PC.
+# This is an alternative to the app. Run it again after the Fire TV restarts.
 #
-#   FIRETV_IP=10.0.4.69 ./watcher/start-watcher.sh
+#   FIRETV_IP=192.168.1.10 ./watcher/start-watcher.sh
 #
-# 前提: Fire TV が開発者モードで、接続方法が TCP/IP になっていること（README 参照）。
-# 初回はテレビに 4 桁の数字が出るので、それを入力する。受け取ったトークンは watcher/.token に保存する。
+# Requires developer mode with Connection Mode set to TCP/IP (see README).
+# The first run shows a 4-digit PIN on the TV; type it here. The token is saved to watcher/.token.
 set -euo pipefail
 
-: "${FIRETV_IP:?FIRETV_IP に Fire TV の IP アドレスを入れてください}"
+: "${FIRETV_IP:?Set FIRETV_IP to the Fire TV IP address}"
 HERE=$(cd "$(dirname "$0")" && pwd)
 TOKEN_FILE="$HERE/.token"
 API="https://$FIRETV_IP:8080"
@@ -24,12 +25,12 @@ wake() {
 if [ ! -s "$TOKEN_FILE" ]; then
   wake
   curl -sk -m 5 -o /dev/null -X POST -H "X-Api-Key: $API_KEY" -H 'Content-Type: application/json' \
-    -d '{"friendlyName":"テレビ音量リモコン"}' "$API/v1/FireTV/pin/display"
-  read -r -p "テレビに出た 4 桁の数字: " pin
+    -d '{"friendlyName":"Fire TV CEC Volume"}' "$API/v1/FireTV/pin/display"
+  read -r -p "4-digit PIN shown on the TV: " pin
   token=$(curl -sk -m 5 -X POST -H "X-Api-Key: $API_KEY" -H 'Content-Type: application/json' \
     -d "{\"pin\":\"$pin\"}" "$API/v1/FireTV/pin/verify" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p')
   if [ -z "$token" ] || [ "$token" = OK ]; then
-    echo "ペアリングに失敗しました" >&2
+    echo "Pairing failed" >&2
     exit 1
   fi
   echo "$token" > "$TOKEN_FILE"
