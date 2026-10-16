@@ -15,6 +15,12 @@ Tested on Fire TV Stick 4K Select (Vega OS). This is a personal-use tool that re
 > [!WARNING]
 > This is an unofficial project and is not affiliated with or endorsed by Amazon. It relies on undocumented Fire TV behavior that may change or stop working with any software update. Use it at your own risk. The software is provided "as is", without warranty of any kind, and the authors accept no liability for any damage or loss arising from its use (see [LICENSE](LICENSE)).
 
+## Screenshot
+
+![The app showing that the watcher is running](docs/app-running-ja.png)
+
+The app follows the device language (English or Japanese). Open it once after the Fire TV restarts; then press Home and use the remote as usual.
+
 ## How it works
 
 - The Fire TV exposes a remote-control API (`https://<Fire TV IP>:8080`) used by the official Fire TV mobile app. Volume keys sent to this API are forwarded to the TV over HDMI-CEC.
