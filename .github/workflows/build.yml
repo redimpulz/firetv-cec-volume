@@ -1,0 +1,74 @@
+# Build the Fire TV app (.vpkg). On a v* tag, attach the packages to a GitHub release.
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  VEGA_SDK_VERSION: '0.24.12112'
+
+jobs:
+  build:
+    # The Vega SDK supports Ubuntu 20.04/22.04/24.04 on x86_64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache Vega SDK
+        id: vega-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/vega
+          key: vega-sdk-${{ env.VEGA_SDK_VERSION }}-${{ runner.os }}
+
+      - name: Install Vega SDK
+        if: steps.vega-cache.outputs.cache-hit != 'true'
+        env:
+          NONINTERACTIVE: 'true'
+          SKIP_VVD_INSTALL: 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl tar jq lz4
+          curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
+
+      - name: Build adbshell
+        working-directory: adbshell
+        run: |
+          . "$HOME/vega/env"
+          npm ci
+          npm test
+          npm run build
+
+      - name: Build app
+        working-directory: app
+        run: |
+          . "$HOME/vega/env"
+          npm ci
+          npm test
+          npm run build:app
+          mkdir -p ../dist
+          cp build/armv7-release/volumeremote_armv7.vpkg ../dist/
+          cp build/aarch64-release/volumeremote_aarch64.vpkg ../dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vpkg
+          path: dist/*.vpkg
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.vpkg
+          generate_release_notes: true

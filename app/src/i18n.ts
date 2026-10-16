@@ -1,7 +1,7 @@
 // UI strings in English and Japanese. The language follows the device locale.
 
 const en = {
-  title: 'CEC Volume',
+  title: 'TV Volume',
   checking: 'Checking…',
   starting: 'Starting the watcher…',
   running:
@@ -20,7 +20,7 @@ const en = {
 };
 
 const ja: typeof en = {
-  title: 'CEC Volume',
+  title: 'テレビ音量',
   checking: '確認しています…',
   starting: '見張りを動かしています…',
   running:
