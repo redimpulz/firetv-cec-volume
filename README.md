@@ -2,7 +2,13 @@
 
 [日本語](README.ja.md)
 
-Control your TV's volume over HDMI-CEC with the Fire TV remote's volume buttons — even while watching YouTube or other apps. Useful when your TV is missing from the remote's IR presets.
+Control your TV's volume over HDMI-CEC with the Fire TV remote's volume buttons — even while watching YouTube or other apps.
+
+## Who is this for
+
+People whose TV the Fire TV Stick remote cannot control. For example, the Don Quijote tunerless TV TSM-5001U4K is not in the remote's IR presets, so the remote's volume buttons do nothing, even though the TV supports HDMI-CEC.
+
+With this tool, the Fire TV Stick remote's volume buttons change the TV volume as usual, including while you are watching YouTube or other apps.
 
 Tested on Fire TV Stick 4K Select (Vega OS). This is a personal-use tool that relies on developer mode; it cannot be published on the Amazon Appstore.
 
