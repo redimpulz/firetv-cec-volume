@@ -1,7 +1,7 @@
 schema-version = 1
 
 [package]
-title = "Basic UI React Native Application for project volumeremote"
+title = "テレビ音量リモコン"
 version = "0.1.0"
 id = "com.redimpulz.volumeremote"
 
@@ -13,9 +13,29 @@ target = "1.2"
 [[needs.module]]
 id = "/com.amazon.vega.os@IVega_1_2"
 
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
+
+# Fire TV の自己署名証明書を許可して API を叩くための、見えない WebView
+[[needs.module]]
+id = "/com.amazon.kepler.webview_4@IWebview_4"
+
 [components]
 [[components.interactive]]
 id = "com.redimpulz.volumeremote.main"
 runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
 launch-type = "singleton"
 categories = ["com.amazon.category.main"]
+
+[wants]
+# WebView の描画
+[[wants.service]]
+id = "com.amazon.webview.renderer_service"
+
+# Group-IPC（WebView が使う）
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"

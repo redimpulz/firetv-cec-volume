@@ -2,19 +2,22 @@ import 'react-native';
 import {render} from '@testing-library/react-native';
 import * as React from 'react';
 
-import {App} from '../src/App';
+import {RemoteScreen} from '../src/screens/RemoteScreen';
 
-describe('App', () => {
-  it('matches snapshot', () => {
-    const screen = render(<App />);
-    expect(screen).toMatchSnapshot();
-  });
+jest.mock('@amazon-devices/webview', () => ({WebView: () => null}));
 
-  it('renders all tiles', () => {
-    const screen = render(<App />);
-    expect(screen.getByTestId('tile-home')).toBeTruthy();
-    expect(screen.getByTestId('tile-get-started')).toBeTruthy();
-    expect(screen.getByTestId('tile-debug')).toBeTruthy();
-    expect(screen.getByTestId('tile-learn-more')).toBeTruthy();
+describe('RemoteScreen', () => {
+  it('音量と電源のボタンを出す', () => {
+    const screen = render(
+      <RemoteScreen
+        token={null}
+        onNeedPairing={() => {}}
+        onOpenSettings={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('volume-up')).toBeTruthy();
+    expect(screen.getByTestId('volume-down')).toBeTruthy();
+    expect(screen.getByTestId('mute')).toBeTruthy();
+    expect(screen.getByTestId('power')).toBeTruthy();
   });
 });

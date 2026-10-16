@@ -9,4 +9,5 @@ dist
 build
 node_modules
 CMakeUserPresets.json
-npm-debug.log
+npm-debug.logbuildinfo.json
+generated
