@@ -1,14 +1,1 @@
-*.iml
-*.swp
-.idea
-.DS_Store
-.vscode
-.tmp
-
-dist
-build
-node_modules
-CMakeUserPresets.json
-npm-debug.logbuildinfo.json
-generated
 watcher/.token
