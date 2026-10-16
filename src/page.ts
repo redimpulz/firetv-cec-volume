@@ -62,7 +62,6 @@ export const PAGE_HTML = `<!doctype html>
   var token = (window.__vr && window.__vr.token) || null;
 
   function post(msg) { window.ReactNativeWebView.postMessage(JSON.stringify(msg)); }
-  function log(text) { post({ type: 'log', text: text }); }
 
   // API はしばらく使わないと止まる。止まっていたら RN に DIAL で起こしてもらう
   var wakeWaiters = [];
@@ -98,12 +97,13 @@ export const PAGE_HTML = `<!doctype html>
   // ---- リモコン画面 ----
   var statusEl = document.getElementById('status');
   function send(action) {
-    return call('POST', '/v1/FireTV?action=' + action).then(function (r) {
+    // 押下だけを送る。押下と離しを分けて送ると、テレビに押下が 2 回届いて音量が 2〜4 動く（実機で確認）
+    var done = call('POST', '/v1/FireTV?action=' + action);
+    return done.then(function (r) {
       if (r.status === 401 || r.status === 403) return onAuthFailed();
       statusEl.textContent = r.status === 200 ? '' : '送れませんでした（HTTP ' + r.status + '）';
     }).catch(function (e) { statusEl.textContent = '送れませんでした: ' + e; });
   }
-  window.__vr.send = send;
 
   document.querySelectorAll('[data-action]').forEach(function (b) {
     b.addEventListener('click', function () { send(b.dataset.action); });
@@ -127,15 +127,6 @@ export const PAGE_HTML = `<!doctype html>
     power.classList.remove('armed');
     power.textContent = 'テレビの電源を切る';
   }
-
-  // リモコンの音量ボタン。アプリが手前にある間だけ届く
-  var VOLUME_KEYS = { AudioVolumeUp: 'volume_up', AudioVolumeDown: 'volume_down', AudioVolumeMute: 'mute',
-    VolumeUp: 'volume_up', VolumeDown: 'volume_down', VolumeMute: 'mute' };
-  document.addEventListener('keydown', function (e) {
-    log('keydown key=' + e.key + ' code=' + e.code + ' keyCode=' + e.keyCode);
-    var action = VOLUME_KEYS[e.key];
-    if (action) { e.preventDefault(); send(action); }
-  }, true);
 
   // 画面を開いている間は API を起こしておく。トークンが無効ならここでペアリングに移る
   function keepAlive() {

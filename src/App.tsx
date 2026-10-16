@@ -9,7 +9,6 @@ import type {
   SslErrorData,
   WebViewMessageEvent,
 } from '@amazon-devices/webview/dist/types/WebViewTypes';
-import {useTVEventHandler} from '@amazon-devices/react-native-kepler';
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {resolveOrigin, wake} from './fireTvApi';
@@ -19,11 +18,6 @@ import {loadToken, saveToken} from './storage';
 type WebViewHandle = React.ElementRef<typeof WebView> & {reload: () => void};
 
 const RETRY_MS = 3000;
-const VOLUME_ACTIONS: Record<string, string> = {
-  volume_up: 'volume_up',
-  volume_down: 'volume_down',
-  mute: 'mute',
-};
 
 export const App = () => {
   const webRef = useRef<WebViewHandle>(null);
@@ -53,7 +47,7 @@ export const App = () => {
   const inject = (script: string) => webRef.current?.injectJavaScript(script);
 
   const onMessage = async ({nativeEvent}: WebViewMessageEvent) => {
-    let msg: {type: string; token?: string; text?: string};
+    let msg: {type: string; token?: string};
     try {
       msg = JSON.parse(nativeEvent.data);
     } catch {
@@ -69,21 +63,8 @@ export const App = () => {
     } else if (msg.type === 'saveToken' && msg.token) {
       tokenRef.current = msg.token;
       await saveToken(msg.token);
-    } else if (msg.type === 'log') {
-      console.error(`[page] ${msg.text}`);
     }
   };
-
-  // RN 側にリモコンの音量キーが届いたら、ページに送らせる（届くかは調査中なのでログも出す）
-  useTVEventHandler((evt) => {
-    console.error(`[key] ${evt.eventType} action=${evt.eventKeyAction}`);
-    const action = VOLUME_ACTIONS[evt.eventType];
-    if (action && evt.eventKeyAction === 0) {
-      inject(
-        `window.__vr && window.__vr.send(${JSON.stringify(action)}); true;`,
-      );
-    }
-  });
 
   if (!origin) {
     return (

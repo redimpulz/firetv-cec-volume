@@ -11,3 +11,4 @@ node_modules
 CMakeUserPresets.json
 npm-debug.logbuildinfo.json
 generated
+watcher/.token
