@@ -29,16 +29,31 @@ The app follows the device language (English or Japanese). Open it once after th
 
 The API is undocumented. This project follows the analysis in [hms-firetv](https://github.com/hms-homelab/hms-firetv) and testing on a real device.
 
-## Setup
+## Requirements
 
-You need the Vega SDK (the `vega` command, loaded with `~/vega/env`) on your PC.
+- A Fire TV running Vega OS (tested: Fire TV Stick 4K Select) and a TV that supports HDMI-CEC
+- A PC on the same LAN running Ubuntu 20.04/22.04/24.04 (x86_64) or macOS, with the Vega SDK installed. Windows and WSL are not officially supported (it did work on WSL with Ubuntu 24.04).
+
+Install the Vega SDK (the `vega` command) on the PC ([official guide](https://developer.amazon.com/docs/vega/0.23/install-vega-sdk.html)):
+
+```bash
+curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
+. ~/vega/env
+```
+
+On Ubuntu, use the native `curl` from apt (the Snap version fails) and install `lz4`.
+
+## Setup
 
 1. On the Fire TV, open Settings → My Fire TV → About and select the device name 7 times. Then open Developer Options → Developer Mode to show a 6-digit code.
 2. On the PC, run `vega devmode login`, then `vega devmode enable-device --code <6-digit code>`. The Fire TV restarts.
 3. Set Developer Options → Connection Mode to TCP/IP. Find the IP address under About → Network, and connect with `vega exec vda connect <IP>:5555`.
 4. Turn on Settings → Display & Sounds → HDMI CEC Device Control.
-5. Build and install the app (see [Build](#build)).
-6. Open the app. A 4-digit PIN appears on the TV; enter it with the app's keypad. You only pair once.
+5. Download the app from [Releases](https://github.com/redimpulz/firetv-cec-volume/releases): `tv-volume_armv7.vpkg` for Fire TV Stick 4K Select (`tv-volume_aarch64.vpkg` for 64-bit devices). Install it:
+   ```bash
+   vega device install-app --packagePath tv-volume_armv7.vpkg
+   ```
+6. Open the app (TV Volume) on the Fire TV. A 4-digit PIN appears on the TV; enter it with the app's keypad. You only pair once.
 
 ## Usage
 
@@ -46,17 +61,18 @@ After the Fire TV restarts, open the app once. When it says the watcher is runni
 
 If the Fire TV is powered from the TV's USB port, it restarts every time the TV turns off. Powering it from the wall with the included adapter avoids this.
 
-## Build
+## Build from source
+
+You also need Node.js 20 or later and npm.
 
 ```bash
 . ~/vega/env
-(cd adbshell && npm install && npm run build)   # rebuild this after changing the watcher
-cd app && npm install && npm run build:app      # build/armv7-release/volumeremote_armv7.vpkg is for Fire TV Stick
-vega device install-app --packagePath build/armv7-release/volumeremote_armv7.vpkg
-vega device launch-app --appName com.redimpulz.volumeremote.main
+(cd adbshell && npm ci && npm run build)   # rebuild this after changing the watcher
+cd app && npm ci && npm run build:app      # outputs build/<arch>-release/tv-volume_<arch>.vpkg
+vega device install-app --packagePath build/armv7-release/tv-volume_armv7.vpkg
 ```
 
-The watcher is embedded into a C++ header when `adbshell` is built.
+The watcher is embedded into a C++ header when `adbshell` is built. GitHub Actions builds every push and attaches the packages to a release when a `v*` tag is pushed ([.github/workflows/build.yml](.github/workflows/build.yml)).
 
 You can also start the watcher from a PC without the app: `FIRETV_IP=<IP> ./watcher/start-watcher.sh` (the first run asks for the PIN in the terminal).
 

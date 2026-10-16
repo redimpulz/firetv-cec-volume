@@ -58,8 +58,7 @@ jobs:
           npm test
           npm run build:app
           mkdir -p ../dist
-          cp build/armv7-release/volumeremote_armv7.vpkg ../dist/
-          cp build/aarch64-release/volumeremote_aarch64.vpkg ../dist/
+          cp build/armv7-release/*.vpkg build/aarch64-release/*.vpkg ../dist/
 
       - uses: actions/upload-artifact@v4
         with:

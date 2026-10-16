@@ -29,16 +29,31 @@ Fire TV Stick 4K Select（Vega OS）で動作を確認しました。開発者�
 
 API の仕様は公開されていません。[hms-firetv](https://github.com/hms-homelab/hms-firetv) の解析結果と、実機での確認に従っています。
 
-## 準備
+## 必要なもの
 
-PC に Vega SDK（`vega` コマンド。`~/vega/env` で読み込む）を入れておきます。
+- Vega OS の Fire TV（動作確認: Fire TV Stick 4K Select）と、HDMI-CEC に対応したテレビ
+- 同じ LAN にある PC。Ubuntu 20.04/22.04/24.04（x86_64）か macOS で、Vega SDK を入れておきます。Windows と WSL は公式には対象外です（WSL の Ubuntu 24.04 では動きました）。
+
+PC に Vega SDK（`vega` コマンド）を入れます（[公式の手順](https://developer.amazon.com/docs/vega/0.23/install-vega-sdk.html)）。
+
+```bash
+curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | bash
+. ~/vega/env
+```
+
+Ubuntu では、apt の `curl` を使い（Snap 版では失敗します）、`lz4` も入れておきます。
+
+## 準備
 
 1. Fire TV の 設定 → マイ Fire TV → バージョン情報 で、端末名を 7 回押します。開発者オプション → Developer Mode で 6 桁のコードを出します。
 2. PC で `vega devmode login` → `vega devmode enable-device --code <6 桁>` を実行します。Fire TV が再起動します。
 3. 開発者オプション → Connection Mode を TCP/IP にします。バージョン情報 → ネットワーク で IP アドレスを確かめ、`vega exec vda connect <IP>:5555` で繋ぎます。
 4. 設定 → ディスプレイとサウンド → HDMI CEC 機器コントロール を ON にします。
-5. アプリをビルドして入れます（[ビルド](#ビルド) を参照）。
-6. アプリを開くと、テレビに 4 桁の数字が出ます。アプリのテンキーで入力します。ペアリングは最初の 1 回だけです。
+5. [Releases](https://github.com/redimpulz/firetv-cec-volume/releases) からアプリを取ってきます。Fire TV Stick 4K Select は `tv-volume_armv7.vpkg`、64 ビットの端末は `tv-volume_aarch64.vpkg` です。次のコマンドで入れます。
+   ```bash
+   vega device install-app --packagePath tv-volume_armv7.vpkg
+   ```
+6. Fire TV でアプリ（テレビ音量）を開くと、テレビに 4 桁の数字が出ます。アプリのテンキーで入力します。ペアリングは最初の 1 回だけです。
 
 ## 使い方
 
@@ -46,17 +61,18 @@ Fire TV を再起動したら、アプリを 1 回開きます。「見張りが
 
 Fire TV の電源をテレビの USB 端子から取っていると、テレビを消すたびに Fire TV が再起動します。付属の AC アダプタでコンセントから取ると、これを避けられます。
 
-## ビルド
+## 自分でビルドする
+
+Node.js 20 以上と npm も必要です。
 
 ```bash
 . ~/vega/env
-(cd adbshell && npm install && npm run build)   # 見張りを書き換えたら、ここからやり直す
-cd app && npm install && npm run build:app      # build/armv7-release/volumeremote_armv7.vpkg が Fire TV Stick 用
-vega device install-app --packagePath build/armv7-release/volumeremote_armv7.vpkg
-vega device launch-app --appName com.redimpulz.volumeremote.main
+(cd adbshell && npm ci && npm run build)   # 見張りを書き換えたら、ここからやり直す
+cd app && npm ci && npm run build:app      # build/<アーキテクチャ>-release/tv-volume_<アーキテクチャ>.vpkg ができる
+vega device install-app --packagePath build/armv7-release/tv-volume_armv7.vpkg
 ```
 
-見張りは `adbshell` のビルドで C++ のヘッダに埋め込まれます。
+見張りは `adbshell` のビルドで C++ のヘッダに埋め込まれます。GitHub Actions が push のたびにビルドし、`v*` のタグを push するとリリースにアプリを添付します（[.github/workflows/build.yml](.github/workflows/build.yml)）。
 
 アプリを使わず、PC から見張りを動かすこともできます: `FIRETV_IP=<IP> ./watcher/start-watcher.sh`（初回はターミナルで 4 桁の数字を入力します）。
 
